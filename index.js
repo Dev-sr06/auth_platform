@@ -7,13 +7,12 @@ const dns=require("dns");
 const {usermodel,todomodel}=require("./db");
 const mongoose=require("mongoose");
 const bcrypt=require("bcrypt");
+const {z, lowercase}=require("zod");
 
 
 // always -->Use public DNS resolver when the local DNS server refuses SRV lookups.
 //this srv llokup dns error is common while connecting with cluster...use dns library and fix the dns servers to google servers///
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
-
-
 
 mongoose.connect("mongodb+srv://sumanyuraj8:nVmdH41P5T4oIwy5@cluster0.ohxzjgb.mongodb.net/to_do_database?retryWrites=true&w=majority")
     .then(()=>{
@@ -54,13 +53,27 @@ app.listen(5000,()=>{
 
 app.post('/signup',async (req,res)=>{
 
+    const required_body=z.object({
+        email:z.string().min(3).max(20).email(),
+        username:z.string().min(3).max(20),
+        password:z.string().min(10).max(20)
+    })
+
+    const parsed_body=required_body.safeParse(req.body);
+    
+    if(!parsed_body.success){
+        return res.json({
+            msg:"invalid input format",
+            err:parsed_body.error,
+        })
+    }
+
     const email=req.body.email;
     const password=req.body.password;
     const username=req.body.username;
 
   const hashed_password=await bcrypt.hash(password,10);
 
-    //input validation using ZOd
       await usermodel.create({
          email:email,
          password:hashed_password,
