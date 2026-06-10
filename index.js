@@ -3,7 +3,21 @@ const app=express();
 const path=require("path");
 const jwt=require("jsonwebtoken");
 const cors=require("cors");
+const dns=require("dns");
+const {usermodel,todomodel}=require("./db");
+const mongoose=require("mongoose");
 
+
+// Use a known public DNS resolver when the local DNS server refuses SRV lookups.
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
+mongoose.connect("mongodb+srv://sumanyuraj8:nVmdH41P5T4oIwy5@cluster0.ohxzjgb.mongodb.net/to_do_database?retryWrites=true&w=majority")
+    .then(()=>{
+      console.log("connected with mongodb,yo boi!")
+    })
+    .catch((err)=>{
+        console.log("error while connecting ",err);
+    })
 
 app.use(cors());
 
@@ -17,59 +31,60 @@ app.use((req,res,next)=>{
 });
 
 function auth (req,res,next){
-     try{
      const token=req.headers.token;
-     const userdata=jwt.verify(token,JWT_SECRET);
-     if(userdata){
-        req.username=userdata.username;
-        next();
-     }}
-   catch(err){
-    res.send("invalid token,boyeah!");
-     console.log(err);
-    }
+     if(!token) return res.status(401).send({ msg: 'No token provided' });
+     try{
+         const userdata=jwt.verify(token,JWT_SECRET);
+         if(!userdata) return res.status(401).send({ msg: 'Invalid token' });
+         req.userid=userdata._id;
+         next();
+     } catch(err){
+         return res.status(401).send({ msg: 'Invalid token' });
+     }
 };
 
 app.listen(5000,()=>{
     console.log("sun raha hu me,,behra nhi hu.....");
 })
 
-const users=[];
 
-app.post('/signup',(req,res)=>{
+app.post('/signup',async (req,res)=>{
 
-    const username=req.body.username;
+    const email=req.body.email;
     const password=req.body.password;
+    const username=req.body.username;
 
     //input validation using ZOd
-
-    users.push({
-        username:username,
-        password:password,
-    })
-
+      await usermodel.create({
+         email:email,
+         password:password,
+         username:username,
+      })
     res.send({
         message:"you are signed up",
     })
-
    
      
 })
 
-app.post('/signin',(req,res)=>{
+app.post('/signin',async(req,res)=>{
   
      const username=req.body.username;
      const password=req.body.password;
-     
-    const user=users.find((user)=>user.username===username && user.password===password);
+     const email=req.body.email;
+     const user=await usermodel.findOne({
+         email:email,
+         password:password,
+     })
      if(!user){
          res.status(400).send({
             message:"invvalid credintials"
          })
+         return;
     }
 
-         const token=jwt.sign({
-            username:username
+       const token=jwt.sign({
+            _id:(user._id).toString(),
          },JWT_SECRET);
         
          res.status(200).send({
@@ -77,15 +92,56 @@ app.post('/signin',(req,res)=>{
             message:"yoi boi ,you are signed in!"
          });
     
-       console.log(users);
 })
 
+app.get("/get_my_info", auth, async (req,res) => {
 
-app.get('/me',auth,(req,res)=>{
+    const user = await usermodel.findOne({
+        _id: req.userid,
+    });
    
-     const username=req.username;
-     res.status(200).send({
-        username:username,
-     });
-     
+    if(!user){
+        return res.status(404).send({
+            msg:"user not found"
+        });
+    }
+    res.send({
+        username:user.username,
+        email:user.email,
+    });
+
+});
+
+app.post("/todos",auth,async(req,res)=>{
+    const title=req.body.title;
+    const done = req.body.status;
+    try{
+        const created = await todomodel.create({
+            userid: req.userid,
+            title: title,
+            done: done
+        });
+        res.status(201).send({ msg: "todo created"});
+    } catch(err){
+        console.error(err);
+        res.status(500).send({ msg: "error creating todo" });
+    }
 })
+
+app.get("/todos",auth,async(req,res)=>{
+
+     const userid=req.userid;
+     const todos=await todomodel.find({
+       userid:userid,
+     })
+
+     if(todos.length==0){
+        return res.status(404).send({
+            msg:"todos not found!"
+        })
+     }
+     res.status(200).send({
+         todos:todos,
+     })
+})
+
