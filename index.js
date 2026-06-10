@@ -6,11 +6,14 @@ const cors=require("cors");
 const dns=require("dns");
 const {usermodel,todomodel}=require("./db");
 const mongoose=require("mongoose");
+const bcrypt=require("bcrypt");
 
 
 // always -->Use public DNS resolver when the local DNS server refuses SRV lookups.
 //this srv llokup dns error is common while connecting with cluster...use dns library and fix the dns servers to google servers///
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
+
 
 mongoose.connect("mongodb+srv://sumanyuraj8:nVmdH41P5T4oIwy5@cluster0.ohxzjgb.mongodb.net/to_do_database?retryWrites=true&w=majority")
     .then(()=>{
@@ -55,10 +58,12 @@ app.post('/signup',async (req,res)=>{
     const password=req.body.password;
     const username=req.body.username;
 
+  const hashed_password=await bcrypt.hash(password,10);
+
     //input validation using ZOd
       await usermodel.create({
          email:email,
-         password:password,
+         password:hashed_password,
          username:username,
       })
     res.send({
@@ -75,15 +80,17 @@ app.post('/signin',async(req,res)=>{
      const email=req.body.email;
      const user=await usermodel.findOne({
          email:email,
-         password:password,
      })
+    
      if(!user){
          res.status(400).send({
             message:"invvalid credintials"
          })
          return;
     }
+    const password_match=await bcrypt.compare(password,user.password) ;
 
+    if(password_match){
        const token=jwt.sign({
             _id:(user._id).toString(),
          },JWT_SECRET);
@@ -92,6 +99,11 @@ app.post('/signin',async(req,res)=>{
             token:token,
             message:"yoi boi ,you are signed in!"
          });
+        }else{
+            return res.status(400).send({
+                msg:"bro! its not a valid password"
+            })
+        }
     
 })
 
