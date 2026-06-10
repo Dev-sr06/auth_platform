@@ -8,7 +8,8 @@ const {usermodel,todomodel}=require("./db");
 const mongoose=require("mongoose");
 
 
-// Use a known public DNS resolver when the local DNS server refuses SRV lookups.
+// always -->Use public DNS resolver when the local DNS server refuses SRV lookups.
+//this srv llokup dns error is common while connecting with cluster...use dns library and fix the dns servers to google servers///
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 mongoose.connect("mongodb+srv://sumanyuraj8:nVmdH41P5T4oIwy5@cluster0.ohxzjgb.mongodb.net/to_do_database?retryWrites=true&w=majority")
